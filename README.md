@@ -1,6 +1,8 @@
 
 # VPN Downloads
 
+NOTE: As it stands, this uses OpenVPN by default. A Wireguard version will be added soon.
+
 Download both files to a directory, then edit the .env file and change the appropriate settings:
 
 * PIA_USER: this is your Private Internet Access username
