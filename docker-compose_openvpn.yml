@@ -46,7 +46,7 @@ services:
    - OPENVPN_USER=${PIA_USER}
    - OPENVPN_PASSWORD=${PIA_PASS}
    - VPN_PORT_FORWARDING=on
-   - VPN_PORT_FORWARDING_STATUS_FILE=/gluetun/forwarded_port
+   - VPN_PORT_FORWARDING_STATUS_FILE=/pia-shared/port.dat
    - UPDATER_PERIOD=24h
    - SERVER_REGIONS=${PIA_REGION}
    - FIREWALL_OUTBOUND_SUBNETS=${NETWORK_SUBNET}/24
@@ -68,7 +68,7 @@ services:
    retries: 5
   restart: unless-stopped
 
- # A library / filter system for movies
+ # A library / filter system for movies
  radarr:
   container_name: radarr
   network_mode: "service:vpn"
@@ -82,7 +82,7 @@ services:
    - TZ=${TZ}
   image: linuxserver/radarr
 
- # A library / filter system for books
+ # A library / filter system for books
  readarr:
   container_name: readarr
   network_mode: "service:vpn"
@@ -96,7 +96,7 @@ services:
    - TZ=${TZ}
   image: lscr.io/linuxserver/readarr:develop
 
- # A library / filter system for TV shows
+ # A library / filter system for TV shows
  sonarr:
   container_name: sonarr
   network_mode: "service:vpn"
@@ -110,7 +110,7 @@ services:
    - TZ=${TZ}
   image: linuxserver/sonarr
 
- # A library / filter system for music
+ # A library / filter system for music
  lidarr:
   container_name: lidarr
   network_mode: "service:vpn"
@@ -124,7 +124,7 @@ services:
    - TZ=${TZ}
   image: linuxserver/lidarr
 
- # A tool that enables a single API to search trackers
+ # A tool that enables a single API to search trackers
  jackett:
   container_name: jackett
   network_mode: "service:vpn"
@@ -149,7 +149,7 @@ services:
   volumes:
    - ./config/autobrr:/config
 
- # A tool that enables a single API to search trackers
+ # A tool that enables a single API to search trackers
  prowlarr:
   image: lscr.io/linuxserver/prowlarr:latest
   container_name: prowlarr
@@ -238,7 +238,7 @@ services:
    - "./config/rutorrent/passwd:/passwd"
   restart: always
 
- # A tool to automatically update qbittorrent with the gluetun port-forward value
+ # A tool to automatically update qbittorrent with the port-forward value
  qbittorrent-port:
   image: charlocharlie/qbittorrent-port-forward-file:latest
   network_mode: "service:vpn"
@@ -247,7 +247,7 @@ services:
    - QBT_USERNAME=${QBT_USER}
    - QBT_PASSWORD=${QBT_PASS}
    - QBT_ADDR=http://localhost:${QBT_WEBUI_PORT}
-   - PORT_FILE=/config/gluetun/forwarded_port
+   - PORT_FILE=/config/pia-shared/port.dat
   volumes:
    - ./config:/config:ro
   restart: unless-stopped

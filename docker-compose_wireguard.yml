@@ -1,0 +1,321 @@
+version: '3.9'
+services:
+ vpn:
+  image: thrnz/docker-wireguard-pia
+  container_name: vpn
+  cap_add:
+   - NET_ADMIN
+   - SYS_MODULE
+  network_mode: "bridge"
+  ports:
+   - 8888:8888/tcp # HTTP proxy
+   - 8388:8388/tcp # Shadowsocks
+   - 8388:8388/udp # Shadowsocks
+   - 8000:8000/tcp # Build-in HTTP control header
+# other container ports
+   - ${QBT_WEBUI_PORT}:${QBT_WEBUI_PORT}/tcp   # qbit webui
+   - ${RT_UI_PORT}:${RT_UI_PORT}/tcp   # rutorrent webui
+   - ${QBT_DAEMON_PORT}:${QBT_DAEMON_PORT}/tcp   # qbit daemon
+   - ${RT_INC_PORT}:${RT_INC_PORT}/tcp   # rtorrent daemon
+   - 2468:2468/tcp     # cross-seed
+   - 2469:2469/tcp     # cross-seed-rtorrent
+   - 5055:5055/tcp     # overseer
+   - 6767:6767/tcp     # bazarr
+   - 8001:8001/tcp     # rutorrent XMLRPC
+   - 8787:8787/tcp     # readarr
+   - 8989:8989/tcp     # sonarr
+   - 7878:7878/tcp     # radarr
+   - 8686:8686/tcp     # lidarr
+   - 9117:9117/tcp     # jackett
+   - 7474:7474/tcp     # autobrr
+   - 8227:8227/tcp     # pyload
+   - 8191:8191/tcp     # flaresolverr
+   - 9000:9000/tcp     # thelounge
+   - 9696:9696/tcp     # prowlarr
+  volumes:
+   - ./config/pia:/pia
+   - ./config/pia-shared:/pia-shared
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+   - LOC=${PIA_REGION_WG}
+   - USER=${PIA_USER}
+   - PASS=${PIA_PASS}
+   - LOCAL_NETWORK=${NETWORK_SUBNET}/24
+   - PORT_FORWARDING=1
+  sysctls:
+   # wg-quick fails to set this without --privileged, so set it here instead if needed
+   - net.ipv4.conf.all.src_valid_mark=1
+   # May as well disable ipv6. Should be blocked anyway.
+   - net.ipv6.conf.default.disable_ipv6=1
+   - net.ipv6.conf.all.disable_ipv6=1
+   - net.ipv6.conf.lo.disable_ipv6=1
+   # The container has no recovery logic. Use a healthcheck to catch disconnects.
+  healthcheck:
+   test: ping -c 1 www.google.com || exit 1
+   interval: 60s
+   timeout: 20s
+   retries: 5
+  restart: unless-stopped
+
+ # A library / filter system for movies
+ radarr:
+  container_name: radarr
+  network_mode: "service:vpn"
+  restart: unless-stopped
+  volumes:
+    - ./config/Radarr:/config
+    - /local/path/to/Movies:/mnt/Movies
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  image: linuxserver/radarr
+
+ # A library / filter system for books
+ readarr:
+  container_name: readarr
+  network_mode: "service:vpn"
+  restart: unless-stopped
+  volumes:
+    - ./config/Readarr:/config
+    - /local/path/to/Books:/mnt/Books
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  image: lscr.io/linuxserver/readarr:develop
+
+ # A library / filter system for TV shows
+ sonarr:
+  container_name: sonarr
+  network_mode: "service:vpn"
+  restart: unless-stopped
+  volumes:
+    - ./config/Sonarr:/config
+    - /local/path/to/TVShows:/mnt/TVShows
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  image: linuxserver/sonarr
+
+ # A library / filter system for music
+ lidarr:
+  container_name: lidarr
+  network_mode: "service:vpn"
+  restart: unless-stopped
+  volumes:
+    - ./config/Lidarr:/config
+    - /local/path/to/Music:/mnt/Music
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  image: linuxserver/lidarr
+
+ # A tool that enables a single API to search trackers
+ jackett:
+  container_name: jackett
+  network_mode: "service:vpn"
+  restart: unless-stopped
+  volumes:
+   - ./config:/config
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  image: linuxserver/jackett
+
+ # A tool to get IRC announcements from trackers and push them to clients
+ autobrr:
+  container_name: autobrr
+  image: ghcr.io/autobrr/autobrr:latest
+  network_mode: "service:vpn"
+  restart: unless-stopped
+  user: ${PUID}:${PGID}
+  environment:
+   - TZ=${TZ}
+  volumes:
+   - ./config/autobrr:/config
+
+ # A tool that enables a single API to search trackers
+ prowlarr:
+  image: lscr.io/linuxserver/prowlarr:latest
+  container_name: prowlarr
+  network_mode: "service:vpn"
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  volumes:
+   - ./config/prowlarr:/config
+  restart: unless-stopped
+
+ # Some tracker sites can only be used (with Jackett / Prowlarr) using flaresolverr
+ flaresolverr:
+  image: ghcr.io/flaresolverr/flaresolverr:latest
+  container_name: flaresolverr
+  network_mode: "service:vpn"
+  environment:
+   - LOG_LEVEL=${LOG_LEVEL:-info}
+   - LOG_HTML=${LOG_HTML:-false}
+   - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+   - TZ=${TZ}
+  restart: unless-stopped
+
+ # A tool that automates cross-seeding within qBittorrent
+ cross-seed:
+  image: crossseed/cross-seed:latest
+  network_mode: "service:vpn"
+  container_name: cross-seed
+  user: ${PUID}:${PGID}
+  volumes:
+   - ./config/cross-seed:/config
+   - ./config/qBittorrent/data/BT_backup:/torrents
+   - /local/path/to/downloads:/mnt/downloads
+  command: daemon
+  restart: unless-stopped
+  depends_on:
+   - qbittorrent
+
+ # The qBittorrent client
+ qbittorrent:
+  image: qbittorrentofficial/qbittorrent-nox:latest
+  network_mode: "service:vpn"
+  container_name: qbittorrent-nox
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+   - QBT_WEBUI_PORT=${QBT_WEBUI_PORT}
+  stop_grace_period: 30m
+  tmpfs:
+   - /tmp
+  volumes:
+   - ./config:/config
+   - /local/path/to/downloads:/mnt/downloads
+  restart: unless-stopped
+  depends_on:
+   - vpn
+
+ # Utility to automatically run a 'reannounce' job on qBittorrent (for stalled torrents)
+ qbittools:
+  image: registry.gitlab.com/alexkm/qbittools
+  network_mode: "service:vpn"
+  container_name: qbittools
+  volumes:
+   - ./config/qBittorrent/config:/qBittorrent
+  command: reannounce -C /qBittorrent/qBittorrent.conf
+  restart: unless-stopped
+
+ # the rtorrent client + ruTorrent web UI
+ rutorrent:
+  image: crazymax/rtorrent-rutorrent:latest
+  container_name: rutorrent
+  network_mode: "service:vpn"
+  environment:
+   - XMLRPC_PORT=8001
+   - WEBDAV_PORT=9001
+   - RUTORRENT_PORT=20001
+   - RT_INC_PORT=50001
+   - PUID=${PUID}
+   - PGID=${PGID}
+  volumes:
+   - "./config/rutorrent/data:/data"
+   - "./config/rutorrent/downloads:/downloads"
+   - "./config/rutorrent/passwd:/passwd"
+  restart: always
+
+ # A tool to automatically update qbittorrent with the port-forward value
+ qbittorrent-port:
+  image: charlocharlie/qbittorrent-port-forward-file:latest
+  network_mode: "service:vpn"
+  container_name: qbittorrent-portfw
+  environment:
+   - QBT_USERNAME=${QBT_USER}
+   - QBT_PASSWORD=${QBT_PASS}
+   - QBT_ADDR=http://localhost:${QBT_WEBUI_PORT}
+   - PORT_FILE=/config/pia-shared/port.dat
+  volumes:
+   - ./config:/config:ro
+  restart: unless-stopped
+  depends_on:
+   - qbittorrent
+   - vpn
+
+ pyload-ng:
+  image: lscr.io/linuxserver/pyload-ng:latest
+  network_mode: "service:vpn"
+  container_name: pyload-ng
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  volumes:
+   - ./config/pyload:/config
+   - ./downloads:/downloads
+  restart: unless-stopped
+
+ # A system to make requests to Radarr / Sonarr etc.
+ overseerr:
+  image: lscr.io/linuxserver/overseerr:latest
+  container_name: overseerr
+  environment:
+   - PUID=${PUID}
+   - PGID=${PGID}
+   - TZ=${TZ}
+  volumes:
+   - ./config/overseerr:/config
+
+ # A web based IRC client
+ thelounge:
+  image: ghcr.io/thelounge/thelounge:latest
+  network_mode: "service:gluetun"
+  container_name: thelounge
+  restart: unless-stopped
+  volumes:
+   - ./config/thelounge:/var/opt/thelounge
+
+ # A discord bot, to interact with Overseerr (or Radarr / Sonarr)
+ doplarr:
+  image: "ghcr.io/kiranshila/doplarr:latest"
+  network_mode: "service:vpn"
+  container_name: doplarr
+  environment:
+    - SONARR__URL=http://localhost:8989
+    - RADARR__URL=http://localhost:7878
+    - SONARR__API=${SONARR_API_KEY}
+    - RADARR__API=${RADARR_API_KEY}
+    - DISCORD__TOKEN=${DISCORD_BOT_TOKEN}
+
+ qbit_manage:
+  network_mode: "service:vpn"
+  container_name: qbit_manage
+  image: ghcr.io/hotio/qbitmanage:latest
+  volumes:
+   - ./config/qbit_manage/:/config:rw
+   - ./config/qBittorrent/:/qBittorrent/:ro
+  environment:
+   - QBT_RUN=true
+   - QBT_SCHEDULE=30
+   - QBT_CONFIG=config.yml
+   - QBT_LOGFILE=activity.log
+   - QBT_CROSS_SEED=false
+   - QBT_RECHECK=false
+   - QBT_CAT_UPDATE=false
+   - QBT_TAG_UPDATE=false
+   - QBT_REM_UNREGISTERED=false
+   - QBT_REM_ORPHANED=false
+   - QBT_TAG_TRACKER_ERROR=false
+   - QBT_TAG_NOHARDLINKS=false
+   - QBT_SHARE_LIMITS=false
+   - QBT_SKIP_CLEANUP=false
+   - QBT_DRY_RUN=true
+   - QBT_LOG_LEVEL=INFO
+   - QBT_DIVIDER==
+   - QBT_WIDTH=100
+  restart: on-failure:2
+  depends_on:
+    - qbittorrent
